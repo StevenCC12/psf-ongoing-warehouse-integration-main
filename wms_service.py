@@ -22,15 +22,38 @@ PSF_ACCESS_TOKEN = os.getenv("PSF_ACCESS_TOKEN")
 PSF_LOCATION_ID = os.getenv("PSF_LOCATION_ID")
 GHL_API_BASE_URL = "https://services.leadconnectorhq.com"
 
+# --- NEW: Country Code Mapping ---
+# A simple mapping for common countries. This can be expanded as needed.
+COUNTRY_CODE_MAP = {
+    "sweden": "SE",
+    "united states": "US",
+    "united kingdom": "GB",
+    "norway": "NO",
+    "denmark": "DK",
+    "finland": "FI",
+    "germany": "DE",
+}
 
-# --- Pydantic Models ---
+def get_country_code(country_name: str | None) -> str:
+    """Converts a country name to a 2-letter ISO code."""
+    if not country_name:
+        return "N/A" # Return a default if no country is provided
+    
+    # Check for an exact 2-letter code first (in case GHL is already correct)
+    if len(country_name) == 2 and country_name.isalpha():
+        return country_name.upper()
+
+    # Look up in our map (case-insensitive)
+    return COUNTRY_CODE_MAP.get(country_name.lower(), "N/A")
+
+# --- Pydantic Models (No changes here) ---
 class OngoingWMSConsignee(BaseModel):
     name: str
     address: str
     address2: Optional[str] = None
     postCode: str
     city: str
-    countryCode: str
+    countryCode: str # Should be ISO 2-letter
     email: Optional[EmailStr] = None
     mobilePhone: Optional[str] = None
 
@@ -68,109 +91,85 @@ def get_ongoing_auth_header(username, password):
     return f"Basic {encoded_credentials}"
 
 def get_ghl_order_details(contact_id: str, retries: int = 3, delay_seconds: int = 20) -> dict | None:
+    # This function remains the same as before
     if not all([PSF_ACCESS_TOKEN, PSF_LOCATION_ID]):
         print("ERROR: PSF_ACCESS_TOKEN or PSF_LOCATION_ID is not set in .env file.")
         return None
     headers = {"Authorization": f"Bearer {PSF_ACCESS_TOKEN}", "Version": "2021-07-28", "Accept": "application/json"}
-
     print(f"INFO: GHL Step 1/2 - Initiating search for latest transaction for contact: {contact_id}")
     transactions_endpoint = f"{GHL_API_BASE_URL}/payments/transactions"
     trans_params = {"contactId": contact_id, "altId": PSF_LOCATION_ID, "altType": "location", "limit": 1, "sortBy": "createdAt", "order": "desc"}
-    
     order_id = None
-    transaction_id_for_logging = None
-
     for attempt in range(retries):
         print(f"INFO: GHL Step 1/2 - Attempt {attempt + 1}/{retries} for transaction lookup...")
         try:
             response = requests.get(transactions_endpoint, headers=headers, params=trans_params)
             response.raise_for_status()
-            transactions_data = response.json()
-            transactions = transactions_data.get("data", [])
-
+            transactions = response.json().get("data", [])
             if transactions:
-                transaction = transactions[0]
-                transaction_id_for_logging = transaction.get('_id')
-                order_id = transaction.get('entityId')
-                
+                order_id = transactions[0].get('entityId')
                 if order_id:
-                    print(f"INFO: GHL Step 1/2 - Success on attempt {attempt + 1}: Found transaction {transaction_id_for_logging}, linked to Order ID: {order_id}")
+                    print(f"INFO: GHL Step 1/2 - Success on attempt {attempt + 1}: Found transaction {transactions[0].get('_id')}, linked to Order ID: {order_id}")
                     break
-                else:
-                    print(f"WARNING: GHL Step 1/2 - Attempt {attempt + 1}: Transaction {transaction_id_for_logging} found, but it has no associated entityId (Order ID).")
-            else:
-                print(f"WARNING: GHL Step 1/2 - Attempt {attempt + 1}: No transactions found for contact {contact_id}.")
-
+            print(f"WARNING: GHL Step 1/2 - Attempt {attempt + 1}: No valid transaction/orderId found.")
             if attempt < retries - 1:
-                print(f"INFO: Waiting {delay_seconds} seconds before next attempt...")
                 time.sleep(delay_seconds)
-            else:
-                if not transactions:
-                    print(f"ERROR: GHL Step 1/2 - Failed to find any transactions for contact {contact_id} after {retries} attempts.")
-                elif not order_id:
-                     print(f"ERROR: GHL Step 1/2 - Found transaction(s) (e.g., {transaction_id_for_logging}) but none had a valid Order ID after {retries} attempts.")
-                return None
-
-        except requests.exceptions.RequestException as req_err:
-            print(f"ERROR: GHL Step 1/2 - Attempt {attempt + 1}: RequestException during transaction lookup: {req_err}")
         except Exception as e:
-            print(f"ERROR: GHL Step 1/2 - Attempt {attempt + 1}: Unexpected error during transaction lookup: {e}")
-        
-        if attempt < retries - 1:
-            print(f"INFO: Waiting {delay_seconds} seconds before next attempt due to previous error or missing data...")
-            time.sleep(delay_seconds)
-        elif order_id is None:
-            print(f"ERROR: GHL Step 1/2 - All {retries} attempts failed to secure an Order ID.")
-            return None
-
+            print(f"ERROR: GHL Step 1/2 - Attempt {attempt + 1} failed: {e}")
+            if attempt < retries - 1:
+                time.sleep(delay_seconds)
     if not order_id:
+        print(f"ERROR: GHL Step 1/2 - Failed to find an Order ID for contact {contact_id} after {retries} attempts.")
         return None
-
     print(f"INFO: GHL Step 2/2 - Fetching full order details for Order ID: {order_id}")
     order_endpoint = f"{GHL_API_BASE_URL}/payments/orders/{order_id}"
     order_params = {"altId": PSF_LOCATION_ID, "altType": "location"}
     try:
         response = requests.get(order_endpoint, headers=headers, params=order_params)
         response.raise_for_status()
+        print("INFO: GHL Step 2/2 - Successfully fetched final order data.")
         return response.json()
     except Exception as e:
         print(f"ERROR during GHL order lookup: {e}")
         return None
 
 def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrderPayload]:
+    print("INFO: Mapping GHL order data to Ongoing WMS payload format...")
     if not ghl_order_data or not ghl_order_data.get("_id"):
+        print("ERROR: Invalid or empty ghl_order_data received for mapping.")
         return None
-
     order_id_from_ghl = ghl_order_data.get("_id")
     contact_snapshot = ghl_order_data.get("contactSnapshot", {})
     items = ghl_order_data.get("items", [])
     if not items:
+        print(f"WARNING: Order {order_id_from_ghl} from GHL contains no line items.")
         return None
-
     line_items_for_wms_data = []
     for item in items:
-        price_details = item.get("price", {})
-        sku = price_details.get("sku")
+        sku = item.get("price", {}).get("sku")
         if not sku:
+            print(f"WARNING: Line item '{item.get('name')}' in GHL order {order_id_from_ghl} is missing an SKU. Skipping.")
             continue
-        quantity = int(item.get("qty", 1))
-        unit_price = float(price_details.get("amount", 0))
-        
         line_items_for_wms_data.append({
             "articleNumber": sku,
-            "numberOfItems": quantity,
+            "numberOfItems": int(item.get("qty", 1)),
             "articleName": item.get("name", "N/A"),
-            "customerLinePrice": round(unit_price * quantity, 2)
+            "customerLinePrice": round(float(item.get("price", {}).get("amount", 0)) * int(item.get("qty", 1)), 2)
         })
-    
     if not line_items_for_wms_data:
+        print(f"ERROR: No valid line items with SKUs could be mapped for GHL order {order_id_from_ghl}.")
         return None
-
     try:
         goods_owner_id_int = int(ONGOING_GOODS_OWNER_ID_STR)
     except (ValueError, TypeError):
+        print(f"CRITICAL ERROR: ONGOING_GOODS_OWNER_ID ('{ONGOING_GOODS_OWNER_ID_STR}') is not a valid integer.")
         return None
-
+    
+    # --- UPDATED MAPPING LOGIC ---
+    country_from_ghl = contact_snapshot.get("country")
+    iso_country_code = get_country_code(country_from_ghl)
+    print(f"INFO: Converted country '{country_from_ghl}' to ISO code '{iso_country_code}'.")
+    
     try:
         payload_data = {
             "goodsOwnerId": goods_owner_id_int,
@@ -185,28 +184,43 @@ def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrd
                 "address2": contact_snapshot.get("address2"),
                 "postCode": contact_snapshot.get("postalCode", "N/A"),
                 "city": contact_snapshot.get("city", "N/A"),
-                "countryCode": contact_snapshot.get("country", "N/A"),
+                "countryCode": iso_country_code, # Use the converted code
                 "email": contact_snapshot.get("email"),
                 "mobilePhone": contact_snapshot.get("phone"),
             },
             "orderLines": line_items_for_wms_data,
+            "wayOfDeliveryType": "B2C-Parcel",
         }
-        return OngoingWMSOrderPayload(**payload_data)
+        wms_payload_model = OngoingWMSOrderPayload(**payload_data)
+        print(f"INFO: Successfully mapped GHL order {order_id_from_ghl} to Pydantic WMS model.")
+        return wms_payload_model
     except Exception as e:
-        print(f"ERROR: Pydantic validation error: {e}")
+        print(f"ERROR: Pydantic validation error during mapping GHL order {order_id_from_ghl}: {e}")
         return None
 
 def create_ongoing_order(wms_payload_model: OngoingWMSOrderPayload) -> bool:
+    print(f"INFO: Sending Pydantic model payload to Ongoing WMS for order: {wms_payload_model.orderNumber}")
     auth_header = get_ongoing_auth_header(ONGOING_USERNAME, ONGOING_PASSWORD)
     if not auth_header: return False
 
     orders_endpoint = f"{BASE_API_URL}orders"
-    headers = {"Authorization": auth_header, "Content-Type": "application/json"}
+    headers = {"Authorization": auth_header, "Content-Type": "application/json", "Accept": "application/json"}
+    
+    # --- UPDATED: ADDED PAYLOAD LOGGING ---
+    payload_json = wms_payload_model.model_dump_json(by_alias=True)
+    print(f"DEBUG: Sending this payload to Ongoing WMS:\n{payload_json}")
 
     try:
-        response = requests.put(orders_endpoint, headers=headers, data=wms_payload_model.model_dump_json())
+        response = requests.put(orders_endpoint, headers=headers, data=payload_json)
         response.raise_for_status()
+        print(f"SUCCESS: Order {wms_payload_model.orderNumber} created/updated in Ongoing WMS. Status: {response.status_code}")
         return True
+    except requests.exceptions.HTTPError as http_err:
+        # --- UPDATED: ADDED DETAILED ERROR LOGGING ---
+        print(f"ERROR: Failed to create order in Ongoing WMS: {http_err}")
+        print(f"  WMS Response Status: {http_err.response.status_code}")
+        print(f"  WMS Response Text: {http_err.response.text}") # This will show the exact error message
+        return False
     except Exception as e:
-        print(f"ERROR: Failed to create order in Ongoing WMS: {e}")
+        print(f"ERROR: Unexpected error sending order to Ongoing WMS: {e}")
         return False
