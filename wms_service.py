@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, validator, EmailStr
 from typing import List, Optional
 import time
 
+# ... (Configurations and country mapping are the same) ...
 load_dotenv()
 
 # --- Configurations ---
@@ -33,7 +34,8 @@ def get_country_code(country_name: str | None) -> str:
     if len(country_name) == 2 and country_name.isalpha(): return country_name.upper()
     return COUNTRY_CODE_MAP.get(country_name.lower(), "N/A")
 
-# --- Pydantic Models ---
+
+# --- Pydantic Models (No changes) ---
 class OngoingWMSConsignee(BaseModel):
     name: str
     address: str
@@ -45,7 +47,6 @@ class OngoingWMSConsignee(BaseModel):
     mobilePhone: Optional[str] = None
 
 class OngoingWMSOrderLine(BaseModel):
-    # --- FIXED: Added rowNumber ---
     rowNumber: int
     articleNumber: str
     numberOfItems: int = Field(gt=0)
@@ -68,9 +69,10 @@ class OngoingWMSOrderPayload(BaseModel):
         if isinstance(v, str): return date.fromisoformat(v)
         return v
 
-# --- Functions (get_ongoing_auth_header and get_ghl_order_details are unchanged) ---
+# --- Functions ---
 
 def get_ongoing_auth_header(username, password):
+    # ... (no changes)
     if not username or not password:
         print("ERROR: Ongoing WMS Username or Password not provided.")
         return None
@@ -78,7 +80,49 @@ def get_ongoing_auth_header(username, password):
     encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
     return f"Basic {encoded_credentials}"
 
+# --- NEW FUNCTION ---
+def create_or_update_consignee(ghl_contact_id: str, consignee_data: dict) -> bool:
+    """Creates or updates a consignee record in Ongoing WMS."""
+    print("INFO: Attempting to create or update consignee in Ongoing WMS...")
+    auth_header = get_ongoing_auth_header(ONGOING_USERNAME, ONGOING_PASSWORD)
+    if not auth_header: return False
+
+    consignee_endpoint = f"{BASE_API_URL}consignees"
+    headers = {"Authorization": auth_header, "Content-Type": "application/json"}
+    
+    # The payload for the consignee endpoint needs a unique number.
+    # We can use the GHL contact ID for this to ensure consistency.
+    payload = {
+        "goodsOwnerId": int(ONGOING_GOODS_OWNER_ID_STR),
+        "consigneeNumber": f"GHL-{ghl_contact_id}", # Use GHL Contact ID as the unique identifier
+        "consigneeName": consignee_data.get("name"),
+        "address": consignee_data.get("address"),
+        "address2": consignee_data.get("address2"),
+        "postCode": consignee_data.get("postCode"),
+        "city": consignee_data.get("city"),
+        "countryCode": consignee_data.get("countryCode"),
+        "telephone": consignee_data.get("mobilePhone"),
+        "email": consignee_data.get("email")
+    }
+    
+    print(f"DEBUG: Sending this payload to Ongoing WMS /consignees:\n{json.dumps(payload, indent=2)}")
+
+    try:
+        response = requests.put(consignee_endpoint, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        print(f"SUCCESS: Consignee GHL-{ghl_contact_id} created/updated in Ongoing WMS. Status: {response.status_code}")
+        return True
+    except requests.exceptions.HTTPError as http_err:
+        print(f"ERROR: Failed to create/update consignee in Ongoing WMS: {http_err}")
+        print(f"  WMS Response Status: {http_err.response.status_code}")
+        print(f"  WMS Response Text: {http_err.response.text}")
+        return False
+    except Exception as e:
+        print(f"ERROR: Unexpected error sending consignee to Ongoing WMS: {e}")
+        return False
+
 def get_ghl_order_details(contact_id: str, retries: int = 3, delay_seconds: int = 20) -> dict | None:
+    # ... (no changes)
     if not all([PSF_ACCESS_TOKEN, PSF_LOCATION_ID]):
         print("ERROR: PSF_ACCESS_TOKEN or PSF_LOCATION_ID is not set in .env file.")
         return None
@@ -118,7 +162,9 @@ def get_ghl_order_details(contact_id: str, retries: int = 3, delay_seconds: int 
         print(f"ERROR during GHL order lookup: {e}")
         return None
 
+
 def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrderPayload]:
+    # ... (no changes to the logic here, it's already correct) ...
     print("INFO: Mapping GHL order data to Ongoing WMS payload format...")
     if not ghl_order_data or not ghl_order_data.get("_id"):
         print("ERROR: Invalid or empty ghl_order_data received for mapping.")
@@ -131,14 +177,13 @@ def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrd
         return None
 
     line_items_for_wms_data = []
-    # --- FIXED: Use enumerate to get an index for the rowNumber ---
     for index, item in enumerate(items):
         sku = item.get("price", {}).get("sku")
         if not sku:
             print(f"WARNING: Line item '{item.get('name')}' in GHL order {order_id_from_ghl} is missing an SKU. Skipping.")
             continue
         line_items_for_wms_data.append({
-            "rowNumber": index + 1, # Add the row number (starting from 1)
+            "rowNumber": index + 1,
             "articleNumber": sku,
             "numberOfItems": int(item.get("qty", 1)),
             "articleName": item.get("name", "N/A"),
@@ -179,7 +224,9 @@ def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrd
         print(f"ERROR: Pydantic validation error during mapping GHL order {order_id_from_ghl}: {e}")
         return None
 
+
 def create_ongoing_order(wms_payload_model: OngoingWMSOrderPayload) -> bool:
+    # ... (no changes)
     print(f"INFO: Sending Pydantic model payload to Ongoing WMS for order: {wms_payload_model.orderNumber}")
     auth_header = get_ongoing_auth_header(ONGOING_USERNAME, ONGOING_PASSWORD)
     if not auth_header: return False
