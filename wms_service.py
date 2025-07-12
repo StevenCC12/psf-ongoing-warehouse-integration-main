@@ -223,10 +223,30 @@ def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrd
     except Exception as e:
         print(f"ERROR: Pydantic validation error during mapping GHL order {order_id_from_ghl}: {e}")
         return None
+    
+
+def get_ghl_contact_details(contact_id: str) -> dict | None:
+    """Fetches the full details for a single contact from GHL."""
+    print(f"INFO: GHL - Fetching details for contact: {contact_id}")
+    if not all([PSF_ACCESS_TOKEN, PSF_LOCATION_ID]):
+        print("ERROR: PSF_ACCESS_TOKEN or PSF_LOCATION_ID is not set in .env file.")
+        return None
+    
+    headers = {"Authorization": f"Bearer {PSF_ACCESS_TOKEN}", "Version": "2021-07-28"}
+    endpoint = f"{GHL_API_BASE_URL}/contacts/{contact_id}"
+
+    try:
+        response = requests.get(endpoint, headers=headers)
+        response.raise_for_status()
+        contact_data = response.json().get("contact")
+        print(f"SUCCESS: GHL - Successfully fetched details for contact {contact_id}")
+        return contact_data
+    except Exception as e:
+        print(f"ERROR: GHL - Could not fetch contact details for {contact_id}: {e}")
+        return None
 
 
 def create_ongoing_order(wms_payload_model: OngoingWMSOrderPayload) -> bool:
-    # ... (no changes)
     print(f"INFO: Sending Pydantic model payload to Ongoing WMS for order: {wms_payload_model.orderNumber}")
     auth_header = get_ongoing_auth_header(ONGOING_USERNAME, ONGOING_PASSWORD)
     if not auth_header: return False
