@@ -11,10 +11,9 @@ from wms_service import (
 # --- CONFIGURATION ---
 # 1. Add the GHL Contact IDs for the four winners here
 WINNER_CONTACT_IDS = [
-    "CONTACT_ID_WINNER_1",
-    "CONTACT_ID_WINNER_2",
-    "CONTACT_ID_WINNER_3",
-    "CONTACT_ID_WINNER_4"
+    "hGQSTibUpurKuZdmZXFF",
+    "eWGw3DSfHMnvmDLPZLja",
+    "SN5b9U2aUdyOwlFowu56"
 ]
 
 # 2. Configure the prize details

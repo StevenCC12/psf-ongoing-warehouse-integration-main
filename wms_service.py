@@ -82,20 +82,20 @@ def get_ongoing_auth_header(username, password):
 
 # --- NEW FUNCTION ---
 def create_or_update_consignee(ghl_contact_id: str, consignee_data: dict) -> bool:
-    """Creates or updates a consignee record in Ongoing WMS."""
-    print("INFO: Attempting to create or update consignee in Ongoing WMS...")
+    """Creates or updates a customer record in Ongoing WMS."""
+    print("INFO: Attempting to create or update customer in Ongoing WMS...")
     auth_header = get_ongoing_auth_header(ONGOING_USERNAME, ONGOING_PASSWORD)
     if not auth_header: return False
 
-    consignee_endpoint = f"{BASE_API_URL}consignees"
+    # --- FIXED: Corrected the API endpoint from /consignees to /customers ---
+    customer_endpoint = f"{BASE_API_URL}customers"
     headers = {"Authorization": auth_header, "Content-Type": "application/json"}
     
-    # The payload for the consignee endpoint needs a unique number.
-    # We can use the GHL contact ID for this to ensure consistency.
+    # --- FIXED: Changed payload keys to match the /customers endpoint ---
     payload = {
         "goodsOwnerId": int(ONGOING_GOODS_OWNER_ID_STR),
-        "consigneeNumber": f"GHL-{ghl_contact_id}", # Use GHL Contact ID as the unique identifier
-        "consigneeName": consignee_data.get("name"),
+        "customerNumber": f"GHL-{ghl_contact_id}", # Use GHL Contact ID as the unique identifier
+        "customerName": consignee_data.get("name"),
         "address": consignee_data.get("address"),
         "address2": consignee_data.get("address2"),
         "postCode": consignee_data.get("postCode"),
@@ -105,20 +105,21 @@ def create_or_update_consignee(ghl_contact_id: str, consignee_data: dict) -> boo
         "email": consignee_data.get("email")
     }
     
-    print(f"DEBUG: Sending this payload to Ongoing WMS /consignees:\n{json.dumps(payload, indent=2)}")
+    print(f"DEBUG: Sending this payload to Ongoing WMS /customers:\n{json.dumps(payload, indent=2)}")
 
     try:
-        response = requests.put(consignee_endpoint, headers=headers, data=json.dumps(payload))
+        # Use the corrected endpoint
+        response = requests.put(customer_endpoint, headers=headers, data=json.dumps(payload))
         response.raise_for_status()
-        print(f"SUCCESS: Consignee GHL-{ghl_contact_id} created/updated in Ongoing WMS. Status: {response.status_code}")
+        print(f"SUCCESS: Customer GHL-{ghl_contact_id} created/updated in Ongoing WMS. Status: {response.status_code}")
         return True
     except requests.exceptions.HTTPError as http_err:
-        print(f"ERROR: Failed to create/update consignee in Ongoing WMS: {http_err}")
+        print(f"ERROR: Failed to create/update customer in Ongoing WMS: {http_err}")
         print(f"  WMS Response Status: {http_err.response.status_code}")
         print(f"  WMS Response Text: {http_err.response.text}")
         return False
     except Exception as e:
-        print(f"ERROR: Unexpected error sending consignee to Ongoing WMS: {e}")
+        print(f"ERROR: Unexpected error sending customer to Ongoing WMS: {e}")
         return False
 
 def get_ghl_order_details(contact_id: str, retries: int = 3, delay_seconds: int = 20) -> dict | None:
