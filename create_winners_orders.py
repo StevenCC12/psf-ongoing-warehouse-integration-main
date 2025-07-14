@@ -1,8 +1,8 @@
 import os
 from datetime import date, timedelta
+# We only need the core functions now
 from wms_service import (
     get_ghl_contact_details,
-    create_or_update_consignee,
     create_ongoing_order,
     OngoingWMSOrderPayload,
     get_country_code
@@ -13,7 +13,8 @@ from wms_service import (
 WINNER_CONTACT_IDS = [
     "hGQSTibUpurKuZdmZXFF",
     "eWGw3DSfHMnvmDLPZLja",
-    "SN5b9U2aUdyOwlFowu56"
+    "SN5b9U2aUdyOwlFowu56",
+    # "CONTACT_ID_WINNER_4" # Add the 4th winner ID here
 ]
 
 # 2. Configure the prize details
@@ -38,25 +39,11 @@ def run():
             print(f"SKIPPING: Could not retrieve details for contact {contact_id}.")
             continue
 
-        # 2. Create the consignee record in Ongoing
-        iso_country_code = get_country_code(contact.get("country"))
-        consignee_payload = {
-            "name": f"{contact.get('firstName', '')} {contact.get('lastName', '')}".strip(),
-            "address": contact.get("address1"),
-            "address2": contact.get("address2"),
-            "postCode": contact.get("postalCode"),
-            "city": contact.get("city"),
-            "countryCode": iso_country_code,
-            "email": contact.get("email"),
-            "mobilePhone": contact.get("phone")
-        }
-        
-        if not create_or_update_consignee(contact_id, consignee_payload):
-            print(f"SKIPPING: Failed to create consignee record for contact {contact_id}.")
-            continue
-            
-        # 3. Manually build the WMS Order Payload
+        # 2. Manually build the WMS Order Payload
         try:
+            iso_country_code = get_country_code(contact.get("country"))
+            
+            # This is the full payload for the order, including the consignee details
             order_payload_data = {
                 "goodsOwnerId": int(os.getenv("ONGOING_GOODS_OWNER_ID")),
                 "orderNumber": f"WINNER-{contact_id[:8]}", # Create a unique order number
@@ -64,21 +51,34 @@ def run():
                 "orderRemark": "Webinar book winner",
                 "customerPrice": PRIZE_PRICE,
                 "currency": "SEK",
-                "consignee": consignee_payload,
+                "consignee": {
+                    # Explicitly set the customerNumber to link or create the customer
+                    "customerNumber": f"GHL-{contact_id}",
+                    "name": f"{contact.get('firstName', '')} {contact.get('lastName', '')}".strip(),
+                    "address1": contact.get("address1"),
+                    "address2": contact.get("address2"),
+                    "postCode": contact.get("postalCode"),
+                    "city": contact.get("city"),
+                    "countryCode": iso_country_code,
+                    "email": contact.get("email"),
+                    "mobilePhone": contact.get("phone")
+                },
                 "orderLines": [{
                     "rowNumber": 1,
                     "articleNumber": PRIZE_SKU,
                     "numberOfItems": PRIZE_QUANTITY,
                     "articleName": PRIZE_NAME,
                     "customerLinePrice": PRIZE_PRICE
-                }]
+                }],
+                "wayOfDeliveryType": "B2C-Parcel" # Default delivery type
             }
             wms_payload_model = OngoingWMSOrderPayload(**order_payload_data)
+            
         except Exception as e:
             print(f"SKIPPING: Could not create Pydantic model for contact {contact_id}. Error: {e}")
             continue
 
-        # 4. Create the order in Ongoing
+        # 3. Create the order in Ongoing
         print(f"INFO: Attempting to create order for {contact.get('firstName')}")
         create_ongoing_order(wms_payload_model)
 
