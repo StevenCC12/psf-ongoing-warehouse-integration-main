@@ -4,7 +4,7 @@ import json
 import os
 from datetime import date, timedelta
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, validator, EmailStr
+from pydantic import BaseModel, Field, field_validator, EmailStr
 from typing import List, Optional
 import time
 
@@ -70,7 +70,8 @@ class OngoingWMSOrderPayload(BaseModel):
     orderLines: List[OngoingWMSOrderLine] = Field(min_length=1)
     wayOfDeliveryType: Optional[str] = "B2C-Parcel"
 
-    @validator('deliveryDate', pre=True, always=True)
+    @field_validator('deliveryDate', mode='before')
+    @classmethod
     def format_delivery_date(cls, v):
         if isinstance(v, str): return date.fromisoformat(v)
         return v
