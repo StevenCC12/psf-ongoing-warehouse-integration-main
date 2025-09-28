@@ -17,10 +17,9 @@ load_dotenv()
 # --- CONFIGURATION ---
 # 1. Add the GHL Contact IDs for the winners here
 WINNER_CONTACT_IDS = [
-    "hGQSTibUpurKuZdmZXFF",
-    "eWGw3DSfHMnvmDLPZLja",
-    "SN5b9U2aUdyOwlFowu56",
-    # "CONTACT_ID_WINNER_4" # Add the 4th winner ID here
+    "c5y2KCGkHo0OKg1D9ppi",
+    "gvOtO3VNy6bVERlfrazL",
+    "xYSopk7z2rt9NnSOAGHh",
 ]
 
 # 2. Configure the prize details
@@ -80,7 +79,7 @@ def run():
             order_payload_data = {
                 "goodsOwnerId": goods_owner_id,
                 "orderNumber": f"WINNER-{contact_id[:8]}", # Create a unique order number
-                "deliveryDate": (date.today() + timedelta(days=1)),
+                "deliveryDate": (date.today() + timedelta(days=1)).isoformat(),
                 "orderRemark": "Webinar book winner",
                 "customerPrice": PRIZE_PRICE,
                 "currency": "SEK",
