@@ -17,14 +17,14 @@ load_dotenv()
 # --- CONFIGURATION ---
 # 1. Add the GHL Contact IDs for the winners here
 WINNER_CONTACT_IDS = [
-    "c5y2KCGkHo0OKg1D9ppi",
-    "gvOtO3VNy6bVERlfrazL",
-    "xYSopk7z2rt9NnSOAGHh",
+    "5xUZvXia9IGMaKdM9Vdc",
+    "ylxC5H72WI94Ykk3vVH6",
 ]
 
 # 2. Configure the prize details
 PRIZE_SKU = "PSF-BOOK-001"
-PRIZE_NAME = "Lyckas på Amazon (Webinar Winner)"
+PRIZE_NAME = "Lyckas på Amazon (Order Bump)"
+ORDER_REMARK = "Order bump"
 PRIZE_QUANTITY = 1
 PRIZE_PRICE = 0.00
 
@@ -80,7 +80,7 @@ def run():
                 "goodsOwnerId": goods_owner_id,
                 "orderNumber": f"WINNER-{contact_id[:8]}", # Create a unique order number
                 "deliveryDate": (date.today() + timedelta(days=1)).isoformat(),
-                "orderRemark": "Webinar book winner",
+                "orderRemark": ORDER_REMARK,
                 "customerPrice": PRIZE_PRICE,
                 "currency": "SEK",
                 "consignee": {
