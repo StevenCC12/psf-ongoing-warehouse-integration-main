@@ -4,7 +4,7 @@ import json
 import os
 from datetime import date, timedelta
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, field_validator, EmailStr
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 import time
 
@@ -13,7 +13,16 @@ load_dotenv()
 # --- Configurations ---
 ONGOING_USERNAME = os.getenv("ONGOING_USERNAME")
 ONGOING_PASSWORD = os.getenv("ONGOING_PASSWORD")
-ONGOING_GOODS_OWNER_ID_STR = os.getenv("ONGOING_GOODS_OWNER_ID")
+# --- FIX: Validate Goods Owner ID immediately ---
+# 1. Fetch the value
+_goods_owner_id_env = os.getenv("ONGOING_GOODS_OWNER_ID")
+
+# 2. Check if it exists. If not, stop the script immediately.
+if _goods_owner_id_env is None:
+    raise ValueError("CRITICAL ERROR: 'ONGOING_GOODS_OWNER_ID' is missing from the .env file.")
+
+# 3. Assign it to your constant. Pylance now knows this is definitely a 'str'.
+ONGOING_GOODS_OWNER_ID_STR = _goods_owner_id_env
 ONGOING_WAREHOUSE_NAME = os.getenv("ONGOING_WAREHOUSE_NAME")
 ONGOING_API_SERVER = os.getenv("ONGOING_API_SERVER", "api.ongoingsystems.se")
 BASE_API_URL = f"https://{ONGOING_API_SERVER}/{ONGOING_WAREHOUSE_NAME}/api/v1/"
