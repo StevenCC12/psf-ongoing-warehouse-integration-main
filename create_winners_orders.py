@@ -17,8 +17,8 @@ load_dotenv()
 # --- CONFIGURATION ---
 # 1. Add the GHL Contact IDs for the winners here
 WINNER_CONTACT_IDS = [
-    "5xUZvXia9IGMaKdM9Vdc",
-    "ylxC5H72WI94Ykk3vVH6",
+    "1KMWxSzpj7fmtmLtbjwP",
+    "zbydWpwBs0lf31Cu6Shm",
 ]
 
 # 2. Configure the prize details
@@ -60,7 +60,12 @@ def run():
         print("\nERROR: Please add the real GHL Contact IDs to the WINNER_CONTACT_IDS list.")
         return
 
-    goods_owner_id = int(os.getenv("ONGOING_GOODS_OWNER_ID"))
+    # --- FIX for the Pylance warning ---
+    raw_goods_owner_id = os.getenv("ONGOING_GOODS_OWNER_ID")
+    if not raw_goods_owner_id:
+        print("\nERROR: ONGOING_GOODS_OWNER_ID is missing from your .env file.")
+        return
+    goods_owner_id = int(raw_goods_owner_id)
 
     for contact_id in WINNER_CONTACT_IDS:
         print(f"\n--- Processing winner with Contact ID: {contact_id} ---")
