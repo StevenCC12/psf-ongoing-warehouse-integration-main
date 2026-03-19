@@ -17,14 +17,17 @@ load_dotenv()
 # --- CONFIGURATION ---
 # 1. Add the GHL Contact IDs for the winners here
 WINNER_CONTACT_IDS = [
-    "1KMWxSzpj7fmtmLtbjwP",
-    "zbydWpwBs0lf31Cu6Shm",
+    "AVyCZT4pAnCXeiXim3rq",
+    "C8ohm6gY7MVMnXjRrRr0",
+    "JC8nm49vx3667n197b69",
+    "37Z6wuPadVhydcMnDbqo",
+    "5Odviz9faafHMrR4BxJC"
 ]
 
 # 2. Configure the prize details
 PRIZE_SKU = "PSF-BOOK-001"
-PRIZE_NAME = "Lyckas på Amazon (Order Bump)"
-ORDER_REMARK = "Order bump"
+PRIZE_NAME = "Lyckas på Amazon (Webinar winner)"
+ORDER_REMARK = "Webinar book winner"
 PRIZE_QUANTITY = 1
 PRIZE_PRICE = 0.00
 
