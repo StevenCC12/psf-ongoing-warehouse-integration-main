@@ -1,19 +1,32 @@
 from fastapi import FastAPI, HTTPException
 import uvicorn
 import os
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
 import json
 
 # Import our service functions
 from wms_service import (
     get_ghl_order_details,
     map_ghl_order_to_wms_payload,
-    create_ongoing_order
+    create_ongoing_order,
+    create_winner_order
 )
 
 # --- Pydantic Models ---
 class HighLevelWebhook(BaseModel):
     contactId: str
+
+class WinnerWebhook(BaseModel):
+    contact_id: str = Field(alias="contact-id")
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address1: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
 
 class SuccessResponse(BaseModel):
     status: str = "success"
@@ -23,12 +36,12 @@ class SuccessResponse(BaseModel):
 app = FastAPI(
     title="PSF to Ongoing WMS Integrator",
     description="Receives webhooks from HighLevel and creates orders in Ongoing WMS.",
-    version="1.0.6" # Updated version for new notification logic
+    version="1.1.0"
 )
 
 @app.get("/")
 async def root():
-    return {"message": "PSF-WMS Integration Service v1.0.6 is running."}
+    return {"message": "PSF-WMS Integration Service v1.1.0 is running."}
 
 @app.post("/webhook-receiver", response_model=SuccessResponse)
 async def handle_highlevel_order(payload: HighLevelWebhook):
@@ -56,6 +69,27 @@ async def handle_highlevel_order(payload: HighLevelWebhook):
         )
     else:
         raise HTTPException(status_code=502, detail="Failed to create order in WMS.")
+
+@app.post("/winner-webhook", response_model=SuccessResponse)
+async def handle_winner_webhook(payload: WinnerWebhook):
+    process_id = os.urandom(4).hex()
+    print(f"\n--- [{process_id}] Winner Webhook Received ---")
+    print(f"[{process_id}] INFO: Contact ID: {payload.contact_id}, Name: {payload.first_name} {payload.last_name}")
+
+    wms_payload = create_winner_order(payload.model_dump())
+    if not wms_payload:
+        raise HTTPException(status_code=500, detail="Failed to build WMS payload from winner webhook data.")
+
+    success = create_ongoing_order(wms_payload)
+
+    if success:
+        print(f"--- [{process_id}] Winner Order Complete: Success ---")
+        return SuccessResponse(
+            message="Winner order sent to WMS.",
+            wmsOrderNumber=wms_payload.orderNumber
+        )
+    else:
+        raise HTTPException(status_code=502, detail="Failed to create winner order in WMS.")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

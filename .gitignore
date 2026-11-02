@@ -7,3 +7,5 @@ old_main.py
 order_payload_showing_digital.json
 verify.py
 __pycache__/
+__pycache__
+wms_service.cpython-312.pyc

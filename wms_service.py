@@ -178,6 +178,51 @@ def map_ghl_order_to_wms_payload(ghl_order_data: dict) -> Optional[OngoingWMSOrd
         print(f"ERROR: Pydantic validation error during mapping: {e}")
         return None
 
+def create_winner_order(webhook_data: dict) -> Optional[OngoingWMSOrderPayload]:
+    print("INFO: Building winner order from webhook data...")
+    contact_id = webhook_data.get("contact_id")
+    if not contact_id:
+        print("ERROR: No contact_id in winner webhook data.")
+        return None
+
+    iso_country_code = get_country_code(webhook_data.get("country"))
+    name = f"{webhook_data.get('first_name', '')} {webhook_data.get('last_name', '')}".strip()
+
+    try:
+        payload_data = {
+            "goodsOwnerId": int(ONGOING_GOODS_OWNER_ID_STR),
+            "orderNumber": f"WINNER-{contact_id[:8]}",
+            "deliveryDate": (date.today() + timedelta(days=1)),
+            "orderRemark": "Special book prize",
+            "customerPrice": 0.00,
+            "currency": "SEK",
+            "consignee": {
+                "customerNumber": f"GHL-{contact_id}",
+                "name": name,
+                "address1": webhook_data.get("address1"),
+                "postCode": webhook_data.get("postal_code"),
+                "city": webhook_data.get("city"),
+                "countryCode": iso_country_code,
+                "advanced": {
+                    "smsNotification": {"value": webhook_data.get("phone")},
+                    "emailNotification": {"value": webhook_data.get("email")}
+                }
+            },
+            "orderLines": [{
+                "rowNumber": 1,
+                "articleNumber": "PSF-BOOK-001",
+                "numberOfItems": 1,
+                "articleName": "Lyckas på Amazon (Special)",
+                "customerLinePrice": 0.00
+            }],
+            "wayOfDeliveryType": "B2C-Parcel",
+        }
+        return OngoingWMSOrderPayload(**payload_data)
+    except Exception as e:
+        print(f"ERROR: Failed to build winner order payload: {e}")
+        return None
+
+
 def create_ongoing_order(wms_payload_model: OngoingWMSOrderPayload) -> bool:
     print(f"INFO: Sending payload to Ongoing WMS for order: {wms_payload_model.orderNumber}")
     auth_header = get_ongoing_auth_header(ONGOING_USERNAME, ONGOING_PASSWORD)
