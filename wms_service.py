@@ -193,7 +193,7 @@ def create_winner_order(webhook_data: dict) -> Optional[OngoingWMSOrderPayload]:
             "goodsOwnerId": int(ONGOING_GOODS_OWNER_ID_STR),
             "orderNumber": f"WINNER-{contact_id[:8]}",
             "deliveryDate": (date.today() + timedelta(days=1)),
-            "orderRemark": "Special book prize",
+            "orderRemark": "Webinar book winner",
             "customerPrice": 0.00,
             "currency": "SEK",
             "consignee": {
