@@ -27,6 +27,7 @@ class WinnerWebhook(BaseModel):
     city: Optional[str] = None
     country: Optional[str] = None
     postal_code: Optional[str] = None
+    tags: Optional[str] = None
 
 class SuccessResponse(BaseModel):
     status: str = "success"

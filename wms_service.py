@@ -188,12 +188,17 @@ def create_winner_order(webhook_data: dict) -> Optional[OngoingWMSOrderPayload]:
     iso_country_code = get_country_code(webhook_data.get("country"))
     name = f"{webhook_data.get('first_name', '')} {webhook_data.get('last_name', '')}".strip()
 
+    tags = webhook_data.get("tags", "")
+    is_downsell = "downsell" in tags.lower() if tags else False
+    order_prefix = "DOWNSELL" if is_downsell else "WINNER"
+    order_remark = "KNAA downsell purchase" if is_downsell else "Webinar book winner"
+
     try:
         payload_data = {
             "goodsOwnerId": int(ONGOING_GOODS_OWNER_ID_STR),
-            "orderNumber": f"WINNER-{contact_id[:8]}",
+            "orderNumber": f"{order_prefix}-{contact_id[:8]}",
             "deliveryDate": (date.today() + timedelta(days=1)),
-            "orderRemark": "Webinar book winner",
+            "orderRemark": order_remark,
             "customerPrice": 0.00,
             "currency": "SEK",
             "consignee": {
