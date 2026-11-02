@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 import uvicorn
 import os
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional
 import json
 
@@ -18,7 +18,7 @@ class HighLevelWebhook(BaseModel):
     contactId: str
 
 class WinnerWebhook(BaseModel):
-    contact_id: str = Field(alias="contact-id")
+    contact_id: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[str] = None
